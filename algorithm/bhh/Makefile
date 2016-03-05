@@ -1,6 +1,5 @@
 .PHONY : all clean
 TARGET = hbb
-aa
 
 all: $(TARGET)
 CXX = g++
