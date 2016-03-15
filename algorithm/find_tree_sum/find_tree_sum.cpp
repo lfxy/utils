@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string>
+#include <vector>
 
 typedef struct _dTree
 {
@@ -49,6 +50,38 @@ void printTree(dTree* startnode, bool bdelete = false)
     }
 }
 
+void checkSum(dTree* pnode, int sum, std::vector<int>& tmpvec, int& tmpSum)
+{
+    if(pnode == NULL)
+        return;
+    
+    tmpvec.push_back(pnode->value);
+    tmpSum += pnode->value;
+    bool bfnode = false;
+    bfnode = pnode->pleft == NULL && pnode->pright == NULL;
+
+    if(tmpSum == sum && bfnode)
+    {
+        printf("has path:");
+        for(int i = 0; i < tmpvec.size(); ++i)
+        {
+            printf("%d", tmpvec[i]);
+        }
+        printf("\n");
+    }
+
+    if(tmpSum < sum)
+    {
+        if(pnode->pleft)
+            checkSum(pnode->pleft, sum, tmpvec, tmpSum);
+        if(pnode->pright)
+            checkSum(pnode->pright, sum, tmpvec, tmpSum);
+    }
+    tmpSum -= pnode->value;
+    tmpvec.pop_back();
+}
+
+
 void findSum(dTree* pRoot, int sum)
 {
     if(pRoot == NULL)
@@ -59,10 +92,6 @@ void findSum(dTree* pRoot, int sum)
     checkSum(pRoot, sum, tmpvec, tmpsum);
 }
 
-void checkSum(dTree* pRoot, int sum, std::vector<int>& tmpvec, int& tmpSum)
-{
-
-}
 
 int main()
 {
@@ -70,5 +99,6 @@ int main()
     dTree* rootnode = makeTree(svalue, 3);
     printTree(rootnode);
     printf("\n");
+    findSum(rootnode, 10);
     return 0;
 }
