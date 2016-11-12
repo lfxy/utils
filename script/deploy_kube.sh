@@ -5,7 +5,7 @@ function usage() {
 cat << EOF
 Deploy master or nodes.
 
-Usage: $PROG [options]
+Usage: deploy [options]
 
 Options:
   -h,--help      Show this help message and exit
@@ -18,33 +18,54 @@ Options:
 Examples:
 
   Deploy to node 10.209.216.20:
-    $PROG -t 10.209.216.20
+    ./deploy_kube.sh -t node -d 10.209.216.20 -m 10.209.216.18
 
 EOF
 
     return 0
 }
 
+function prepare_environment() {
+	if [[ "$USER" != "root" ]]; then
+        echo "Current user is not root"
+        return 1
+    fi
+
+	yum update -y
+	yum install -y docker
+	systemctl restart docker
+    cp ./docker /etc/sysconfig/docker
+	return 0
+}
 
 function deploy_etcd() {
     mkdir -p /var/lib/etcd/default.etcd
     mount --bind /var/lib/etcd/default.etcd /var/lib/etcd/default.etcd
     mount --make-shared /var/lib/etcd/default.etcd
 
-    etcd
     docker run -d \
-        --volume=/var/lib/etcd/default.etcd:/var/lib/etcd/default.etcd:rw,shared \
+        --volume=/var/lib/etcd/default.etcd:/var/lib/etcd/default.etcd:rw \
         --net=host \
         --pid=host \
         --name=etcd \
         10.213.42.254:10500/huangyujun6/etcd-amd64:2.2.5 \
         /usr/local/bin/etcd --name=default --data-dir=/var/lib/etcd/default.etcd
 
-    dockerid=`docker ps -q -f=name=etcd -n=-1`
-    etcd_health=`docker exec $dockerid etcdctl cluster-health`
-    ret=1
-    [[ $etcd_health =~ "cluster is healthy" ]] && ret=0
-    return ret
+    for loop in 1 2 3
+    do
+        dockerid=`docker ps -q -f=name=etcd -n=-1`
+        etcd_health=`docker exec $dockerid etcdctl cluster-health`
+        echo $etcd_health | grep 'cluster is healthy'
+        if [ $? -eq 0 ]; then
+            echo "deploy_etcd success"
+            return 0
+        else
+            echo "deploy_etcd $loop times, and will retry"
+            sleep 2
+        fi
+    done
+    echo "deploy_etcd error"
+    return 1
 }
 
 function deploy_apiserver() {
@@ -52,7 +73,6 @@ function deploy_apiserver() {
     sudo mount --bind /var/log/kubernetes /var/log/kubernetes
     sudo mount --make-shared /var/log/kubernetes
 
-    apiserver
     docker run -d \
         --volume=/var/log/kubernetes/:/var/log/kubernetes:rw \
         --net=host \
@@ -70,15 +90,16 @@ function deploy_apiserver() {
 
     apiserver_health=`docker ps -q -f=name=apiserver`
 	if [ ${#apiserver_health} -eq 0 ]; then
+        echo "deploy_apiserver error"
         return 1
     else
+        echo "deploy_apiserver success"
         return 0
     fi
 }
 
 
 function deploy_manager_scheduler() {
-    controller-manager
     docker run -d \
         --volume=/var/log/kubernetes/:/var/log/kubernetes:rw \
         --net=host \
@@ -89,7 +110,6 @@ function deploy_manager_scheduler() {
         --master=http://localhost:8080 \
         --log-dir=/var/log/kubernetes —v=0
 
-    scheduler
     docker run -d \
         --volume=/var/log/kubernetes/:/var/log/kubernetes:rw \
         --net=host \
@@ -105,28 +125,64 @@ function deploy_manager_scheduler() {
 }
 
 function deploy_master() {
+    docker rm -f etcd apiserver controller-manager scheduler
     deploy_etcd || exit $?
     deploy_apiserver || exit $?
-    deploy_manager_schedul || exit $?
+    deploy_manager_scheduler || exit $?
 
     return 0
 }
 
 function deploy_kubelet() {
+	docker run -d \
+		--volume=/:/rootfs:ro \
+		--volume=/sys:/sys:rw \
+		--volume=/var/lib/docker/:/var/lib/docker:rw \
+		--volume=/var/lib/kubelet/:/var/lib/kubelet:rw \
+		--volume=/var/run:/var/run:rw \
+		--net=host \
+		--pid=host \
+		--privileged \
+		--name=kubelet \
+		--restart=always \
+		10.213.42.254:10500/root/hyperkube:v1.4.5 \
+		/hyperkube kubelet \
+			--containerized \
+            --hostname-override=$node_ip \
+			--api-servers=http://$master_ip:8080 \
+			--config=/etc/kubernetes/manifests \
+			--allow-privileged -v=0
 
-    return 1
+    return 0
 }
 
 function deploy_proxy() {
+	docker run -d \
+		--volume=/:/rootfs:ro \
+		--volume=/sys:/sys:rw \
+		--volume=/var/lib/docker/:/var/lib/docker:rw \
+		--volume=/var/lib/kubelet/:/var/lib/kubelet:rw \
+		--volume=/var/run:/var/run:rw \
+		--net=host \
+		--pid=host \
+		--privileged \
+		--restart=always \
+		--name=proxy \
+		10.213.42.254:10500/root/hyperkube:v1.4.5 \
+		/hyperkube proxy \
+		--master=http://$master_ip:8080 -v=0
 
     return 0
 }
 
 function deploy_node() {
-#deploy_kubelet || exit $?
-#deploy_proxy || exit $?
-    deploy_kubelet || echo "1111" 
-    deploy_proxy || exit "00000"
+    docker rm -f kubelet proxy
+    mkdir -p /var/lib/kubelet
+    mount --bind /var/lib/kubelet /var/lib/kubelet
+    mount --make-shared /var/lib/kubelet
+
+	deploy_kubelet || exit $?
+	deploy_proxy || exit $?
 
     return 0
 }
@@ -134,9 +190,10 @@ if [ $# == 0 ]; then
 	usage && exit 0
 fi
 
-ip=""
+node_ip=""
 type="node"
-while getopts ":t:d:" opt
+master_ip=""
+while getopts ":t:d:m:" opt
 do
 	case $opt in
 		h) 
@@ -144,19 +201,23 @@ do
 		t) 
             type=$OPTARG;;
 		d) 
-            ip=$OPTARG;;
+            node_ip=$OPTARG;;
+		m) 
+            master_ip=$OPTARG;;
         ?) 
             usage && exit 1
             ;;
 	esac
 done
 
-if test -z ip ; then
-    echo "error without ip" 
+if [[ -z "$node_ip" || -z "$master_ip" ]] ; then
+    echo "error without node_ip or master_ip" 
 fi
 
 echo $type
-echo $ip
+echo $node_ip
+echo $master_ip
+prepare_environment || exit 1
 if  [ $type = "master" ]; then
     echo "start deploy master..."
     deploy_master
