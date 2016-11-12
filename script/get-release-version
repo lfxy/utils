@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# script to get release version from configure.ac
+# actually ./configure can substitute the PACKAGE_VERSION variable
+# but we want the version info before running ./configure
+# so extract that information directly from configure.ac
+
+# AC_INIT([ctriton],[1.6.2])
+
+if [ ! -f configure.ac ] ; then
+    echo "Please run this script at the same level of configure.ac!" >&2;
+    exit 1
+fi
+
+grep '^\s*AC_INIT(\[ctdn\]' configure.ac | sed -n 's/^.*\[\([0-9.]\+\)\].*$/\1/p'
