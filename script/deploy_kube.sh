@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 function usage() {
 cat << EOF
 Deploy master or nodes.
@@ -18,7 +17,7 @@ Options:
 Examples:
 
   Deploy to node 10.209.216.20:
-    ./deploy_kube.sh -t node -d 10.209.216.20 -m 10.209.216.18
+    ./deploy_kube.sh -t node -d 10.209.216.21 -m 10.209.216.20
 
 EOF
 
@@ -26,16 +25,20 @@ EOF
 }
 
 function prepare_environment() {
-	if [[ "$USER" != "root" ]]; then
+    if [[ "$USER" != "root" ]]; then
         echo "Current user is not root"
         return 1
     fi
 
-	yum update -y
-	yum install -y docker
-	systemctl restart docker
-    cp ./docker /etc/sysconfig/docker
-	return 0
+    yum update -y
+    yum install -y docker
+    if [ -f "./docker" ]; then
+        cp ./docker /etc/sysconfig/docker
+        systemctl restart docker
+        return 0
+    else
+        return 1
+    fi
 }
 
 function deploy_etcd() {
@@ -89,7 +92,7 @@ function deploy_apiserver() {
         --logtostderr=false --log-dir=/var/log/kubernetes —v=0
 
     apiserver_health=`docker ps -q -f=name=apiserver`
-	if [ ${#apiserver_health} -eq 0 ]; then
+    if [ ${#apiserver_health} -eq 0 ]; then
         echo "deploy_apiserver error"
         return 1
     else
@@ -134,43 +137,43 @@ function deploy_master() {
 }
 
 function deploy_kubelet() {
-	docker run -d \
-		--volume=/:/rootfs:ro \
-		--volume=/sys:/sys:rw \
-		--volume=/var/lib/docker/:/var/lib/docker:rw \
-		--volume=/var/lib/kubelet/:/var/lib/kubelet:rw \
-		--volume=/var/run:/var/run:rw \
-		--net=host \
-		--pid=host \
-		--privileged \
-		--name=kubelet \
-		--restart=always \
-		10.213.42.254:10500/root/hyperkube:v1.4.5 \
-		/hyperkube kubelet \
-			--containerized \
+    docker run -d \
+        --volume=/:/rootfs:ro \
+        --volume=/sys:/sys:rw \
+        --volume=/var/lib/docker/:/var/lib/docker:rw \
+        --volume=/var/lib/kubelet/:/var/lib/kubelet:rw \
+        --volume=/var/run:/var/run:rw \
+        --net=host \
+        --pid=host \
+        --privileged \
+        --name=kubelet \
+        --restart=always \
+        10.213.42.254:10500/root/hyperkube:v1.4.5 \
+        /hyperkube kubelet \
+            --containerized \
             --hostname-override=$node_ip \
-			--api-servers=http://$master_ip:8080 \
-			--config=/etc/kubernetes/manifests \
-			--allow-privileged -v=0
+            --api-servers=http://$master_ip:8080 \
+            --config=/etc/kubernetes/manifests \
+            --allow-privileged -v=0
 
     return 0
 }
 
 function deploy_proxy() {
-	docker run -d \
-		--volume=/:/rootfs:ro \
-		--volume=/sys:/sys:rw \
-		--volume=/var/lib/docker/:/var/lib/docker:rw \
-		--volume=/var/lib/kubelet/:/var/lib/kubelet:rw \
-		--volume=/var/run:/var/run:rw \
-		--net=host \
-		--pid=host \
-		--privileged \
-		--restart=always \
-		--name=proxy \
-		10.213.42.254:10500/root/hyperkube:v1.4.5 \
-		/hyperkube proxy \
-		--master=http://$master_ip:8080 -v=0
+    docker run -d \
+        --volume=/:/rootfs:ro \
+        --volume=/sys:/sys:rw \
+        --volume=/var/lib/docker/:/var/lib/docker:rw \
+        --volume=/var/lib/kubelet/:/var/lib/kubelet:rw \
+        --volume=/var/run:/var/run:rw \
+        --net=host \
+        --pid=host \
+        --privileged \
+        --restart=always \
+        --name=proxy \
+        10.213.42.254:10500/root/hyperkube:v1.4.5 \
+        /hyperkube proxy \
+        --master=http://$master_ip:8080 -v=0
 
     return 0
 }
@@ -181,13 +184,13 @@ function deploy_node() {
     mount --bind /var/lib/kubelet /var/lib/kubelet
     mount --make-shared /var/lib/kubelet
 
-	deploy_kubelet || exit $?
-	deploy_proxy || exit $?
+    deploy_kubelet || exit $?
+    deploy_proxy || exit $?
 
     return 0
 }
 if [ $# == 0 ]; then
-	usage && exit 0
+    usage && exit 0
 fi
 
 node_ip=""
@@ -195,23 +198,29 @@ type="node"
 master_ip=""
 while getopts ":t:d:m:" opt
 do
-	case $opt in
-		h) 
-			usage && exit 0;;
-		t) 
+    case $opt in
+        h)
+            usage && exit 0;;
+        t)
             type=$OPTARG;;
-		d) 
+        d)
             node_ip=$OPTARG;;
-		m) 
+        m)
             master_ip=$OPTARG;;
-        ?) 
+        ?)
             usage && exit 1
             ;;
-	esac
+    esac
 done
 
-if [[ -z "$node_ip" || -z "$master_ip" ]] ; then
-    echo "error without node_ip or master_ip" 
+#if [[ -z "$node_ip" || -z "$master_ip" ]] ; then
+    #echo "error without node_ip or master_ip"
+#fi
+if [ $type = "node" ] ; then
+    if [[ -z "$node_ip" || -z "$master_ip" ]] ; then
+        echo "error  node_ip or master_ip"
+        exit 1
+    fi
 fi
 
 echo $type
@@ -225,3 +234,5 @@ elif  [ $type = "node" ]; then
     echo "start deploy node..."
     deploy_node
 fi
+
+alias kubectl='docker exec `docker ps -q -f=ancestor=10.213.42.254:10500/root/hyperkube:v1.4.5 -n=1`
