@@ -67,7 +67,7 @@ void find_tree_preorder2(dTree* startnode)
     if(startnode == NULL)
         return;
 
-    std::stack<dTree*> treeStack; 
+    std::stack<dTree*> treeStack;
     treeStack.push(startnode);
     while(treeStack.size())
     {
@@ -185,8 +185,15 @@ int main()
 {
     int svalue = 0;
     dTree* rootnode = makeTree(svalue, 3);
-    find_tree_postorder2(rootnode);
+    printf("1111\n");
     printTree(rootnode);
     printf("\n");
+    printf("1111\n");
+    //find_tree_inorder1(rootnode);
+    find_tree_preorder2(rootnode);
+    printf("2222\n");
+    printTree(rootnode);
+    printf("\n");
+    printf("2222\n");
     return 0;
 }

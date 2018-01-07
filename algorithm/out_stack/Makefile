@@ -1,5 +1,5 @@
 .PHONY : all clean
-TARGET = fullsort
+TARGET = out
 
 all: $(TARGET)
 CXX = g++

@@ -54,7 +54,7 @@ void checkSum(dTree* pnode, int sum, std::vector<int>& tmpvec, int& tmpSum)
 {
     if(pnode == NULL)
         return;
-    
+
     tmpvec.push_back(pnode->value);
     tmpSum += pnode->value;
     bool bfnode = false;

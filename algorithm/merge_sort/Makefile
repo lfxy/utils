@@ -1,5 +1,5 @@
 .PHONY : all clean
-TARGET = fullsort
+TARGET = merge_sort
 
 all: $(TARGET)
 CXX = g++
@@ -7,8 +7,8 @@ RM := rm
 VPATH =. ./src
 #CXXPPFLAGS := -D__RELEASE_VERSION__
 CXXFLAGS = -Wall -g -I ./ -I ./include/
-LIBDIRS := 
-CXXLDFLAGS = 
+LIBDIRS :=
+CXXLDFLAGS =
 DIRS :=. ./src
 FILES = $(foreach dir, $(DIRS), $(wildcard $(dir)/*.cpp))
 OBJS = $(patsubst %.cpp, %.o,$(FILES))
@@ -16,7 +16,7 @@ OBJS = $(patsubst %.cpp, %.o,$(FILES))
 $(TARGET):$(OBJS)
 	@echo $(FILES)
 	@echo $(OBJS)
-	$(CXX) -o $@ $(LIBDIRS) $^ $(CXXLDFLAGS) 
+	$(CXX) -o $@ $(LIBDIRS) $^ $(CXXLDFLAGS)
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<

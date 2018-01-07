@@ -8,7 +8,7 @@ void sortby(int nums[], int length, int index, int& count)
         //printf("%s\n", nums);
         return;
     }
-    
+
     for(int i = index; i < 8; ++i)
     {
         int tmp = nums[i];
@@ -38,6 +38,35 @@ void FullSort(int n)
     sortby(nums, n, 0, count);
     printf("count:%d\n", count);
 }
+
+typedef struct node {
+    struct node* next;
+    int value;
+} Node;
+
+Node* MergeList(Node* phead1, Node* phead2)
+{
+    if(phead1 == NULL)
+        return phead2;
+    else if(phead2 == NULL)
+        return phead1;
+
+    Node* pRetHead = NULL;
+    if(phead1->value < phead2->value)
+    {
+        pRetHead = phead1;
+        pRetHead->next = MergeList(phead1->next, phead2);
+    }
+    else
+    {
+        pRetHead = phead2;
+        pRetHead->next = MergeList(phead1, phead2->next);
+    }
+    return pRetHead;
+}
+
+
+
 
 int main()
 {

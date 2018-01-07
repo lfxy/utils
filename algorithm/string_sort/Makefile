@@ -1,5 +1,5 @@
 .PHONY : all clean
-TARGET = fullsort
+TARGET = sort
 
 all: $(TARGET)
 CXX = g++
@@ -7,7 +7,7 @@ RM := rm
 VPATH =. ./src
 #CXXPPFLAGS := -D__RELEASE_VERSION__
 CXXFLAGS = -Wall -g -I ./ -I ./include/
-LIBDIRS := 
+LIBDIRS := -L ./lib
 CXXLDFLAGS = 
 DIRS :=. ./src
 FILES = $(foreach dir, $(DIRS), $(wildcard $(dir)/*.cpp))
